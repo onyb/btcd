@@ -1382,3 +1382,36 @@ func (c *Client) GetDescriptorInfoAsync(descriptor string) FutureGetDescriptorIn
 func (c *Client) GetDescriptorInfo(descriptor string) (*btcjson.GetDescriptorInfoResult, error) {
 	return c.GetDescriptorInfoAsync(descriptor).Receive()
 }
+
+// FutureGetBulkResult waits for the responses promised by the future
+// and returns them in a channel
+type FutureGetBulkResult chan *response
+
+type IndividualBulkResult struct {
+	Result interface{} `json:"result"`
+	Error  string      `json:"error"`
+	Id     uint64      `json:"id"`
+}
+
+type BulkResult = map[uint64]IndividualBulkResult
+
+// Receive waits for the response promised by the future and returns the hash of
+// the best block in the longest block chain.
+func (r FutureGetBulkResult) Receive() (BulkResult, error) {
+	m := make(BulkResult)
+	res, err := receiveFuture(r)
+	if err != nil {
+		return nil, err
+	}
+	var arr []IndividualBulkResult
+	err = json.Unmarshal(res, &arr)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, results := range arr {
+		m[results.Id] = results
+	}
+
+	return m, nil
+}
